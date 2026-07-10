@@ -1,0 +1,75 @@
+[gd_scene format=3 uid="uid://kmgor3c8nsd3"]
+
+[ext_resource type="Script" uid="uid://bcrdg87pov7j1" path="res://addons/godotllmagent/core/AgentClient.gd" id="1_jnl0h"]
+[ext_resource type="Script" uid="uid://cstb4ww8tlxsy" path="res://addons/godotllmagent/core/AgentConfiguration.gd" id="2_sokux"]
+
+[sub_resource type="Resource" id="Resource_sokux"]
+script = ExtResource("2_sokux")
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+api_key = "sk-ws-H.EMYHHLY.atvL.MEUCIQDhrolWIxe4_k6e4D_cd89rOYHj3-l1U3tQXP1P-WTS-QIgDkDgehHL-2Dds3OZxgcE4VEWZP8qJ7BVWKsA8InzjEg"
+extra_parameters = {
+"enable_thinking": false
+}
+model = "qwen3.7-plus"
+stream = true
+metadata/_custom_type_script = "uid://cstb4ww8tlxsy"
+
+[sub_resource type="GDScript" id="GDScript_bhunq"]
+script/source = "extends Node
+
+@onready var agent_client: AgentClient = $\"..\";
+var resp : AgentConversationMessages;
+@onready var label: Label = $\"../ScrollContainer/Label\"
+
+func _ready() -> void:
+	agent_client.open();
+	var msg : AgentMessage = AgentMessage.new();
+	msg.content = \"\"\"随便干点什么\"\"\";
+	agent_client.context.histroy_messages.append(msg.duplicate(true));
+	
+	var kaichuangzao : AgentTool = preload(\"uid://dgq3ogma7ym4h\").new();
+	var pvp_tool : AgentTool = preload(\"uid://h1mmjrmnyq3v\").new();
+	agent_client.context.tool_list[\"KAIGUA\"] = kaichuangzao;
+	
+	resp = agent_client.request_message();
+
+
+# Called every frame. 'delta' is the elapsed time since the previous frame.
+func _process(delta: float) -> void:
+	label.text = \"\"
+	for c in resp.messages:
+		var i = resp.messages[c]
+		label.text += i.reasoning_content;
+		label.text += i.content;
+		for sss : AgentToolCall in i.tool_calls.values() : 
+			label.text += sss.id;
+			label.text += sss.name;
+			label.text += sss.arguments;
+		label.text += \"\\n=-=-=-=-=-=-=-=-=-=-=-=END=-=-=-=-=-=-=-=-=-=-=\\n\";
+	
+"
+
+[sub_resource type="LabelSettings" id="LabelSettings_sokux"]
+font_size = 24
+
+[node name="AgentClient" type="Node" unique_id=939054118]
+script = ExtResource("1_jnl0h")
+config = SubResource("Resource_sokux")
+metadata/_custom_type_script = "uid://bcrdg87pov7j1"
+
+[node name="Controller" type="Node" parent="." unique_id=317718744]
+script = SubResource("GDScript_bhunq")
+
+[node name="ScrollContainer" type="ScrollContainer" parent="." unique_id=170488783]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Label" type="Label" parent="ScrollContainer" unique_id=1008112481]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+label_settings = SubResource("LabelSettings_sokux")
+autowrap_mode = 1

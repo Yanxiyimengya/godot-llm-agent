@@ -1,0 +1,66 @@
+[gd_scene format=3 uid="uid://kmgor3c8nsd3"]
+
+[ext_resource type="Script" uid="uid://bcrdg87pov7j1" path="res://addons/godotllmagent/core/AgentClient.gd" id="1_jnl0h"]
+[ext_resource type="Script" uid="uid://cstb4ww8tlxsy" path="res://addons/godotllmagent/core/AgentConfiguration.gd" id="2_sokux"]
+
+[sub_resource type="Resource" id="Resource_jnl0h"]
+script = ExtResource("2_sokux")
+base_url = "https://api.deepseek.com"
+api_key = "sk-42b2356881cc408fa1769a6120c3c44a"
+model = "deepseek-v4-flash"
+stream = true
+timeout_seconds = 120.0
+body_idle_timeout_seconds = 120.0
+metadata/_custom_type_script = "uid://cstb4ww8tlxsy"
+
+[sub_resource type="GDScript" id="GDScript_bhunq"]
+script/source = "extends Node
+
+@onready var agent_client: AgentClient = $\"..\";
+var resp : AgentMessageAssistant;
+@onready var label: Label = $\"../Label\"
+
+func _ready() -> void:
+	var msg : AgentMessage = AgentMessage.new();
+	msg.content = \"你是谁\";
+	agent_client.context.histroy_messages.append(msg.duplicate(true));
+	
+	msg.content = \"我是 pig god,我想和你PVP!\";
+	msg.role = AgentMessage.Role.ASSISTANT;
+	agent_client.context.histroy_messages.append(msg.duplicate(true));
+	
+	msg.content = \"调用PVP工具,你可以选择攻击我，或者不攻击我，别打我了\";
+	msg.role = AgentMessage.Role.USER;
+	agent_client.context.histroy_messages.append(msg.duplicate(true));
+	
+	var pvp_tool : AgentTool = preload(\"uid://h1mmjrmnyq3v\").new();
+	agent_client.context.tool_list = {
+		\"PVP_TOOL\" : pvp_tool
+	};
+	resp = await agent_client.request();
+
+
+# Called every frame. 'delta' is the elapsed time since the previous frame.
+func _process(delta: float) -> void:
+	label.text = resp.reasoning_content;
+	label.text += resp.content;
+	label.text += str(resp.tool_calls);
+	print(resp.get_status());
+	
+"
+
+[node name="AgentClient" type="Node" unique_id=939054118]
+script = ExtResource("1_jnl0h")
+config = SubResource("Resource_jnl0h")
+metadata/_custom_type_script = "uid://bcrdg87pov7j1"
+
+[node name="Controller" type="Node" parent="." unique_id=317718744]
+script = SubResource("GDScript_bhunq")
+
+[node name="Label" type="Label" parent="." unique_id=1008112481]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+autowrap_mode = 1
