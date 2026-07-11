@@ -28,6 +28,6 @@ extends Resource;
 @export var frequency_penalty : float = 0.0;
 
 @export_category("Network")
-@export var timeout_seconds : float = 15.0; ## 超时时间（单位：秒）
+@export var connent_timeout_seconds : float = 15.0; ## 连接超时时间（单位：秒）
 @export var body_idle_timeout_seconds : float = 30.0; ## 读取请求体超时时间（单位：秒）
 @export var body_total_timeout_seconds : float = 120.0; ## 读取请求体总超时时间（单位：秒）

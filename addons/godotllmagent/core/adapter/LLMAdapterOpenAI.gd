@@ -21,6 +21,8 @@ func _get_role_string(role : AgentMessage.Role) -> String:
 ## 解析响应，响应必须是有效的
 ## [br]返回多条备选消息
 func phrase_response(response : AgentResponse) -> AgentConversationMessages:
+	if (response == null) : 
+		return null;
 	var msgs : AgentConversationMessages = AgentConversationMessages.new();
 	response.finished.connect(msgs.finished.emit);
 	response.updated.connect(
@@ -145,7 +147,7 @@ func _generate_messages(history_messages : Array[AgentMessage]) -> Array[Diction
 								"type" : "function",
 								"function" : {
 									"name" : tool_call.name,
-									"arguments" : JSON.stringify(tool_call.arguments),
+									"arguments" : tool_call.arguments,
 								},
 							});
 			else : pass;

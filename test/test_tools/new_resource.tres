@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="AgentFileAccessTool" format=3 uid="uid://w4vro22iv2r0"]
+
+[ext_resource type="Script" uid="uid://1sp7vokgyemr" path="res://test/test_tools/file_access.gd" id="1_tfu62"]
+
+[resource]
+script = ExtResource("1_tfu62")
+metadata/_custom_type_script = "uid://1sp7vokgyemr"
