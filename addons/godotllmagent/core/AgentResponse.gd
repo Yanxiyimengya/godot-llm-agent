@@ -21,14 +21,14 @@ var stream : bool = false;
 ## 响应状态
 var status : AgentResponse.Status = AgentResponse.Status.NONE;
 
-var _response_body : Dictionary = {}; # 响应体消息
+var _response_body : String = ""; # 响应体数据
 var _is_opened : bool = false; # 是否打开
 
 ## 获取响应状态
 func get_status() -> Status: return status;
 
 ## 更新响应体消息
-func update_body(body : Dictionary) -> void:
+func update_body(body : String) -> void:
 	if (!_is_opened) : return;
 	self.status = AgentResponse.Status.BODY;
 	_response_body = body;
@@ -49,5 +49,5 @@ func close(status : AgentResponse.Status = \
 			finished.emit();
 		self.status = status;
 
-func get_body() -> Dictionary:
+func get_body() -> String:
 	return _response_body;

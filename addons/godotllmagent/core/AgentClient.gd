@@ -165,8 +165,7 @@ func request() -> AgentResponse:
 						var data : String = "\n".join(data_lines).strip_edges();
 						if (data == "[DONE]") : 
 							continue;
-						
-						response.update_body(JSON.parse_string(data));
+						response.update_body(data);
 				else : 
 					# 非流式响应，将数据缓存到 body_buffer
 					body_buffer.append_array(chunk);
@@ -187,8 +186,7 @@ func request() -> AgentResponse:
 		# 非流式响应，将缓存释放到 response
 		if (!streaming) : 
 			var body : String = body_buffer.get_string_from_utf8();
-			response.update_body(JSON.parse_string(body));
-			
+			response.update_body(body);
 	# 执行HTTP请求的异步函数
 	var _begin_request : Callable = func() -> bool:
 		var tls_options : TLSOptions = TLSOptions.client() if parsed_url["tls"] else null;
@@ -250,7 +248,7 @@ func request() -> AgentResponse:
 				return false;
 			else : 
 				# 响应成功
-				await _read_body.callv([response.stream]);
+				await _read_body.call(response.stream);
 				_close_client.callv([AgentResponse.Status.FINISHED]);
 				return true;
 		else : 
@@ -264,7 +262,6 @@ func request() -> AgentResponse:
 
 ## 解析消息，返回消息对象
 func request_message() -> AgentConversationMessages :
-	
 	return adapter.phrase_response(request());
 
 func tool_call(assistant_message : AgentMessageAssistant) -> Dictionary[int, AgentMessageToolCall] : 

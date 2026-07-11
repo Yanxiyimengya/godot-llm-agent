@@ -27,12 +27,16 @@ func phrase_response(response : AgentResponse) -> AgentConversationMessages:
 	response.finished.connect(msgs.finished.emit);
 	response.updated.connect(
 		func() : 
-			var response_body : Dictionary = response.get_body();
+			var body : String = response.get_body();
+			var json : JSON = JSON.new();
+			if (json.parse(body) != Error.OK) : 
+				push_warning("Agent API response error.");
+				return;
+			var response_body : Dictionary = JSON.parse_string(body);
 			
 			if (response_body.has("error")) :
 				push_warning("Agent API returned an error response: %s" % [JSON.stringify(response_body["error"])]);
 				return;
-			
 			if (!response_body.has("choices") || typeof(response_body["choices"]) != TYPE_ARRAY) :
 				push_warning("Agent API response has no choices array.");
 				return;
