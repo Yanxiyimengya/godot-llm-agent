@@ -73,15 +73,18 @@ func phrase_message(msg : AgentMessageAssistant, \
 			var tool_call_id : String = tool_call_data.get("id", "");
 			var tool_call_index : int = tool_call_data.get("index", 0);
 			
+			var tool_call : AgentToolCall;
 			if (!msg.tool_calls.has(tool_call_index)) : 
 				var tool_call_name : String = function_dict.get("name", "");
-				var tool_call : AgentToolCall = AgentToolCall.new(tool_call_id, tool_call_name);
-				if (tool_call != null && tool_call.is_valid()) : 
+				if (tool_call_id.is_empty()) : 
+					tool_call_id = "call_" + (tool_call_name + str(randi())).md5_text();
+				if (!tool_call_name.is_empty()) : 
+					tool_call = AgentToolCall.new(tool_call_id, tool_call_name);
 					msg.tool_calls[tool_call_index] = tool_call;
-			
-			var tool_call : AgentToolCall = msg.tool_calls[tool_call_index];
-			var tool_call_arguments : String = function_dict.get("arguments", "");
-			tool_call.arguments += tool_call_arguments;
+			else : tool_call = msg.tool_calls[tool_call_index];
+			if (tool_call != null) : 
+				var tool_call_arguments : String = function_dict.get("arguments", "");
+				tool_call.arguments += tool_call_arguments;
 	return msg;
 
 #endregion

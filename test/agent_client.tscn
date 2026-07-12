@@ -2,16 +2,15 @@
 
 [ext_resource type="Script" uid="uid://bcrdg87pov7j1" path="res://addons/godotllmagent/core/AgentClient.gd" id="1_jnl0h"]
 [ext_resource type="Script" uid="uid://cstb4ww8tlxsy" path="res://addons/godotllmagent/core/AgentConfiguration.gd" id="2_sokux"]
-[ext_resource type="Script" uid="uid://bbqapvnjhonfc" path="res://addons/godotllmagent/core/tool_call/actuator/mcp/AgentLocalMCPClient.gd" id="6_ncxlw"]
 
 [sub_resource type="Resource" id="Resource_sokux"]
 script = ExtResource("2_sokux")
-base_url = "https://api.deepseek.com"
+base_url = "https://api.deepseek.com/anthropic"
+api_key = "sk-d25031dd41174e2e8f77a0dc4b42f260"
 extra_parameters = {
-"enable_thinking": true
+"enable_thinking": false
 }
 model = "deepseek-v4-flash"
-stream = true
 metadata/_custom_type_script = "uid://cstb4ww8tlxsy"
 
 [sub_resource type="GDScript" id="GDScript_bhunq"]
@@ -81,13 +80,8 @@ font_size = 24
 [node name="AgentClient" type="Node" unique_id=939054118]
 script = ExtResource("1_jnl0h")
 config = SubResource("Resource_sokux")
+api_standrd = 1
 metadata/_custom_type_script = "uid://bcrdg87pov7j1"
-
-[node name="AgentLocalMCPClient" type="Node" parent="." unique_id=137321531]
-script = ExtResource("6_ncxlw")
-command = "npx"
-args = PackedStringArray("-y", "better-browser-mcp@0.1.2", "serve")
-metadata/_custom_type_script = "uid://bbqapvnjhonfc"
 
 [node name="Controller" type="Node" parent="." unique_id=317718744]
 script = SubResource("GDScript_bhunq")

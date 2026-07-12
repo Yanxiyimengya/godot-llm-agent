@@ -4,13 +4,7 @@ extends AgentMCPClient;
 
 signal mcp_initialized;
 signal mcp_notification(message : Dictionary);
-
-# MCP 连接状态
-enum MCPStatus {
-	CLOSED,
-	INITIALIZING,
-	READY,
-}
+signal mcp_log(log : String);
 
 ## 启动本地 MCP 服务的命令
 @export 
@@ -38,7 +32,6 @@ var _mcp_server_pid : int = -1;
 var _next_request_id : int = 0;
 var _pending_requests : Dictionary[int, MCPRequest] = {};
 var _mcp_tools : Dictionary[String, AgentTool] = {};
-var _mcp_status : MCPStatus = MCPStatus.CLOSED;
 
 # MCP 请求对象
 class MCPRequest:
@@ -46,12 +39,10 @@ class MCPRequest:
 	signal completed(message : Dictionary);
 	var id : int = -1;
 
-
-func init_mcp() -> bool : 
-	if (_mcp_status != MCPStatus.CLOSED) : 
-		return false;
+func init_mcp() -> void : 
+	if (status != MCPStatus.CLOSED) : return;
 	
-	_mcp_status = MCPStatus.INITIALIZING;
+	status = MCPStatus.INITIALIZING;
 	
 	var execute_command : String = command;
 	var execute_args : PackedStringArray = args;
@@ -75,8 +66,8 @@ func init_mcp() -> bool :
 		false
 	);
 	if (result.is_empty()) : 
-		_mcp_status = MCPStatus.CLOSED;
-		return false;
+		status = MCPStatus.CLOSED;
+		return;
 	
 	_mcp_stdio = result.get("stdio");
 	_mcp_err = result.get("stderr");
@@ -84,8 +75,9 @@ func init_mcp() -> bool :
 	
 	if (_mcp_stdio == null) : 
 		uninit_mcp();
-		return false;
+		return;
 	
+	# 发送 initialize request
 	var init_message : Dictionary = await send_request(
 		"initialize",
 		{
@@ -97,29 +89,24 @@ func init_mcp() -> bool :
 			},
 		}
 	);
-	
 	if (!init_message.has("result")) : 
 		uninit_mcp();
-		return false;
+		return;
 	else : 
 		_mcp_protoco_version = \
 				init_message["result"]["protocolVersion"];
 	
-	send_notification(
-		"notifications/initialized",
-		{}
-	);
+	# 发送 initialize notification
+	send_notification("notifications/initialized", {});
 	
 	await _get_tool_list();
 	
-	_mcp_status = MCPStatus.READY;
+	status = MCPStatus.READY;
 	mcp_initialized.emit();
-	
-	return true;
 
 
 func uninit_mcp() -> void : 
-	_mcp_status = MCPStatus.CLOSED;
+	status = MCPStatus.CLOSED;
 	
 	for request_id : int in _pending_requests :
 		var pending : MCPRequest = _pending_requests[request_id];
@@ -140,18 +127,15 @@ func uninit_mcp() -> void :
 
 
 func list_tool() -> Dictionary[String, AgentTool] :
-	if (_mcp_status == MCPStatus.INITIALIZING) : 
+	if (status == MCPStatus.INITIALIZING) : 
 		await mcp_initialized;
-	
-	if (_mcp_status != MCPStatus.READY) : 
-		return {};
-	
+	if (status != MCPStatus.READY) : return {};
 	return _mcp_tools;
 
-
+## 调用 MCP 工具
 func mcp_call(tool_name : String, \
 		params : Dictionary) -> Variant : 
-	if (_mcp_status != MCPStatus.READY) : 
+	if (status != MCPStatus.READY) : 
 		return {};
 	
 	var result : Dictionary = await send_request(
@@ -162,7 +146,6 @@ func mcp_call(tool_name : String, \
 		}
 	);
 	return result;
-
 
 func _process(delta : float) -> void:
 	if (_mcp_stdio == null) : return;
@@ -175,18 +158,11 @@ func _process(delta : float) -> void:
 		var json : JSON = JSON.new();
 		var error : Error = json.parse(line);
 		if (error != Error.OK) : 
-			push_error(
-				"MCP JSON解析失败: %s" % [
-					json.get_error_message()
-				]
-			);
+			##DANGER
 			continue;
-		
 		if (!(json.data is Dictionary)) : continue;
-		
 		var message : Dictionary = json.data;
 		
-		# JSON-RPC Response
 		if (message.has("id") && \
 				(message.has("result") || message.has("error"))) : 
 			var request_id : int = int(message["id"]);
@@ -204,16 +180,13 @@ func _process(delta : float) -> void:
 			else : 
 				_handle_notification(message);
 			continue;
-		
+	
+	# 监听 stderr 流
 	if (_mcp_err != null) : 
 		while (_mcp_err.get_length() > 0) : 
 			var line : String = _mcp_err.get_line();
-			if (!line.is_empty()) : 
-				print_rich(
-					"[color=yellow]MCP STDERR: %s[/color]" % [
-						line
-					]
-				);
+			if (line.is_empty()) : continue;
+			mcp_log.emit(line);
 
 ## 向 MCP 服务器发送请求
 func send_request(method : String, \
@@ -276,8 +249,7 @@ func _handle_notification(message : Dictionary) -> void:
 	match (method) :
 		"notifications/tools/list_changed":
 			await _get_tool_list();
-		_:
-			pass;
+		_: pass;
 	
 	mcp_notification.emit(message);
 

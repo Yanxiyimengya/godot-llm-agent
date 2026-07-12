@@ -21,7 +21,15 @@ enum AgentError
 	LLM_ERROR,				# 大模型错误
 }
 
+enum APIStandard
+{
+	OPENAI, 				# OpenAI 标准
+	ANTHROPIC, 				# Anthropic 标准
+};
+
 @export var config : AgentConfiguration = AgentConfiguration.new();
+@export var api_standrd : APIStandard = APIStandard.OPENAI;
+
 var context : AgentContext;
 var adapter : LLMAdapter;
 
@@ -36,9 +44,15 @@ func _notification(what: int) -> void:
 
 ## 打开 Agent 会话
 func open() -> Error:
-	context = AgentContext.new();
-	adapter = LLMAdapterOpenAI.new(config);
+	match (api_standrd):
+		APIStandard.OPENAI:
+			adapter = LLMAdapterOpenAI.new(config);
+		APIStandard.ANTHROPIC:
+			adapter = LLMAdapterAnthropic.new(config);
+		_: 
+			return Error.FAILED;
 	await _search_tool();
+	context = AgentContext.new();
 	_is_opened = true;
 	return Error.OK;
 
@@ -186,6 +200,7 @@ func request() -> AgentResponse:
 		# 非流式响应，将缓存释放到 response
 		if (!streaming) : 
 			var body : String = body_buffer.get_string_from_utf8();
+			print_rich("[color=green]%s"%[body]);
 			response.update_body(body);
 	# 执行HTTP请求的异步函数
 	var _begin_request : Callable = func() -> bool:
@@ -223,7 +238,7 @@ func request() -> AgentResponse:
 				adapter.generate_header(),
 				request_body
 				);
-			
+			print(request_body);
 			## 等待响应
 			while (http_client.get_status() == HTTPClient.STATUS_REQUESTING) :
 				http_client.poll();

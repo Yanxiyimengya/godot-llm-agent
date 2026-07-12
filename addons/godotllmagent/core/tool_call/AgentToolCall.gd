@@ -20,4 +20,4 @@ func _init(
 
 ## 检查当前是否为一个有效的 ToolCall
 func is_valid() -> bool : 
-	return !self.id.is_empty() && !self.name.is_empty()
+	return !self.id.is_empty() && !self.name.is_empty();
