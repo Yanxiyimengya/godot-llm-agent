@@ -21,19 +21,11 @@ enum AgentError
 	LLM_ERROR,				# 大模型错误
 }
 
-enum APIStandard
-{
-	OPENAI, 				# OpenAI 标准
-	ANTHROPIC, 				# Anthropic 标准
-};
-
 @export var config : AgentConfiguration = AgentConfiguration.new();
-@export var api_standrd : APIStandard = APIStandard.OPENAI;
 
-var context : AgentContext;
-var adapter : LLMAdapter;
-
-var _tools : Dictionary[String, AgentTool] = {};
+var context : AgentContext = AgentContext.new();
+var _adapter : LLMAdapter;
+var _agent_tools : Dictionary[String, AgentTool];
 
 #region 生命周期
 var _is_opened : bool = false;
@@ -44,15 +36,14 @@ func _notification(what: int) -> void:
 
 ## 打开 Agent 会话
 func open() -> Error:
-	match (api_standrd):
-		APIStandard.OPENAI:
-			adapter = LLMAdapterOpenAI.new(config);
-		APIStandard.ANTHROPIC:
-			adapter = LLMAdapterAnthropic.new(config);
+	match (config.api_standrd):
+		AgentConfiguration.APIStandard.OPENAI:
+			_adapter = LLMAdapterOpenAI.new(config);
+		AgentConfiguration.APIStandard.ANTHROPIC:
+			_adapter = LLMAdapterAnthropic.new(config);
 		_: 
 			return Error.FAILED;
 	await _search_tool();
-	context = AgentContext.new();
 	_is_opened = true;
 	return Error.OK;
 
@@ -67,18 +58,20 @@ func is_opened() -> bool:
 
 # 搜索子节点中有效的 AgentToolSet
 func _search_tool() -> void:
+	var tools : Dictionary[String, AgentTool];
 	for node : Node in get_children(true):
 		if (node is not AgentToolSet) : continue;
 		var tool_list : Dictionary[String, AgentTool] = await node.list_tool();
 		if (tool_list.is_empty()) : continue;
 		for tool_name : String in tool_list : 
 			var tool : AgentTool = tool_list[tool_name];
-			_tools[tool_name] = tool;
+			tools[tool_name] = tool;
+	_agent_tools = tools;
 #endregion
 
 #region 工具方法
 # 解析URL的 地址/端口/TLS/请求路径
-func _parse_url(url : String) -> Dictionary:
+static func _parse_url(url : String) -> Dictionary:
 	var regex : RegEx = RegEx.new();
 	if (regex.compile("^(https?)://([^/:?#]+)(?::([0-9]+))?([^?#]*)?(?:\\?([^#]*))?") != OK) :
 		return {};
@@ -121,19 +114,22 @@ func _push_error(e : AgentError, m : String = "") -> void:
 
 ## 向大模型发送会话请求
 ## [br]返回 AgentMessageAssistant 表示来自LLM的回复，这个对象会持续更新
-func request() -> AgentResponse:
-	if (!self.is_opened()) : 
-		_push_error(AgentError.NOT_OPENED);
-		return null;
-	if (config.base_url.is_empty()) : 
+func _request_llm(
+		agent_config : AgentConfiguration,
+		agent_context : AgentContext,
+		llm_adapter : LLMAdapter,
+		tools : Dictionary[String, AgentTool]
+		) -> AgentResponse:
+	
+	if (agent_config.base_url.is_empty()) : 
 		_push_error(AgentError.REQUEST_URL_EMPTY);
 		return null;
 	
 	var response : AgentResponse = AgentResponse.new();
-	response.open(config.stream);
+	response.open(agent_config.stream);
 	
-	var url : String = adapter.generate_url();
-	var parsed_url : Dictionary = self._parse_url(url);
+	var url : String = llm_adapter.generate_url();
+	var parsed_url : Dictionary = _parse_url(url);
 	var http_client : HTTPClient = HTTPClient.new();
 	
 	var _close_client : Callable = func(
@@ -186,11 +182,11 @@ func request() -> AgentResponse:
 				last_chunk_msec = Time.get_ticks_msec();
 			
 			# 超时处理
-			if (Time.get_ticks_msec() - read_start_msec >= (config.body_total_timeout_seconds * 1000.0)) :
+			if (Time.get_ticks_msec() - read_start_msec >= (agent_config.body_total_timeout_seconds * 1000.0)) :
 				_push_error(AgentError.RESPONSE_TIMEOUT, "响应时间超时");
 				_close_client.call();
 				break;
-			elif (Time.get_ticks_msec() - last_chunk_msec >= (config.body_idle_timeout_seconds * 1000.0)) :
+			elif (Time.get_ticks_msec() - last_chunk_msec >= (agent_config.body_idle_timeout_seconds * 1000.0)) :
 				_push_error(AgentError.RESPONSE_TIMEOUT, "读取响应数据块超时");
 				_close_client.call();
 				break;
@@ -216,7 +212,7 @@ func request() -> AgentResponse:
 			# 连接服务器
 			while (http_client.get_status() == HTTPClient.STATUS_CONNECTING || http_client.get_status() == HTTPClient.STATUS_RESOLVING) :
 				http_client.poll();
-				if (Time.get_ticks_msec() - connect_start_msec >= (config.connent_timeout_seconds * 1000.0)) :
+				if (Time.get_ticks_msec() - connect_start_msec >= (agent_config.connent_timeout_seconds * 1000.0)) :
 					_push_error(AgentError.CONNENT_TIMEOUT);
 					_close_client.call();
 					return false;
@@ -227,22 +223,22 @@ func request() -> AgentResponse:
 				return false;
 			
 			# 构建请求
-			var request_body : String = adapter.generate_body(
-					context.histroy_messages,
-					_tools,
-					config.extra_parameters
+			var context_messages : Array = agent_context.get_context_messages();
+			var request_body : String = llm_adapter.generate_body(
+					context_messages,
+					tools,
+					agent_config.extra_parameters
 					);
 			http_client.request(
 				HTTPClient.METHOD_POST,
 				parsed_url["path"],
-				adapter.generate_header(),
+				llm_adapter.generate_header(),
 				request_body
 				);
-			print(request_body);
 			## 等待响应
 			while (http_client.get_status() == HTTPClient.STATUS_REQUESTING) :
 				http_client.poll();
-				if (Time.get_ticks_msec() - connect_start_msec >= (config.connent_timeout_seconds * 1000.0)) :
+				if (Time.get_ticks_msec() - connect_start_msec >= (agent_config.connent_timeout_seconds * 1000.0)) :
 					_push_error(AgentError.REQUEST_TIMEOUT);
 					_close_client.call();
 					return false;
@@ -277,8 +273,17 @@ func request() -> AgentResponse:
 
 ## 解析消息，返回消息对象
 func request_message() -> AgentConversationMessages :
-	return adapter.phrase_response(request());
+	if (!self.is_opened()) : 
+		_push_error(AgentError.NOT_OPENED);
+		return null;
+	return _adapter.phrase_response(_request_llm(
+		config,
+		context,
+		_adapter,
+		_agent_tools
+	));
 
+## 根据智能体消息，寻找并调用合适的工具
 func tool_call(assistant_message : AgentMessageAssistant) -> Dictionary[int, AgentMessageToolCall] : 
 	if (assistant_message.tool_calls.is_empty()) : 
 		return {};
@@ -287,23 +292,25 @@ func tool_call(assistant_message : AgentMessageAssistant) -> Dictionary[int, Age
 	
 	for index : int in assistant_message.tool_calls:
 		var tool_call : AgentToolCall = assistant_message.tool_calls[index];
-		if (!_tools.has(tool_call.name)) : 
+		if (!_agent_tools.has(tool_call.name)) : 
 			var tool_call_result : AgentMessageToolCall = AgentTool.send_error("工具名称 %s 不存在" % [tool_call.name]);
 			tool_call_result.tool_call_id = tool_call.id;
 			result[index] = tool_call_result;
 			continue;
 		
-		var tool : AgentTool = _tools.get(tool_call.name, null);
+		var tool : AgentTool = _agent_tools.get(tool_call.name, null);
 		# 异步形式调用智能体工具
 		var _call : Callable = func() -> AgentMessageToolCall:
-			var json : JSON = JSON.new();
-			var error : Error = json.parse(tool_call.arguments);
-			if (error != Error.OK) : 
-				return AgentTool.send_error("参数格式错误，不是有效的JSON%s" % [json.get_error_message()]);
-			if (!(json.data is Dictionary)) : 
-				return AgentTool.send_error("参数错误，工具参数必须是JSON对象");
+			var args : Dictionary = {};
+			if (!tool_call.arguments.is_empty()) : 
+				var json : JSON = JSON.new();
+				var error : Error = json.parse(tool_call.arguments);
+				if (error != Error.OK) : 
+					return AgentTool.send_error("参数格式错误，不是有效的JSON%s" % [json.get_error_message()]);
+				if (!(json.data is Dictionary)) : 
+					return AgentTool.send_error("参数错误，工具参数必须是JSON对象");
+				args = json.data as Dictionary;
 			
-			var args : Dictionary = json.data as Dictionary;
 			var required_values : PackedStringArray = tool._get_required();
 			for required_name : String in required_values :
 				if (!args.has(required_name)) :

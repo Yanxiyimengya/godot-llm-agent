@@ -10,7 +10,7 @@ func phrase_response(response : AgentResponse) -> AgentConversationMessages:
 	
 	# 解析 Anthropic Content Block
 	var phrase_content : Callable = func(msg : AgentMessageAssistant, \
-			block : Dictionary, index : int = 0) -> void:
+			block : Dictionary, index : int = 0, streaming : bool = false) -> void:
 		var block_type : String = block.get("type", "");
 		match(block_type) :
 			"text", "text_delta":
@@ -25,9 +25,12 @@ func phrase_response(response : AgentResponse) -> AgentConversationMessages:
 				if (!tool_call_name.is_empty()) :
 					var tool_call : AgentToolCall = AgentToolCall.new(
 						tool_call_id, tool_call_name);
-					var input : Variant = block.get("input", null);
-					if (input != null) :
-						tool_call.arguments = JSON.stringify(input);
+					
+					if (!streaming) :
+						var input : Variant = block.get("input", null);
+						if (input != null) :
+							tool_call.arguments = JSON.stringify(input);
+					
 					msg.tool_calls[index] = tool_call;
 			"input_json_delta":
 				if (msg.tool_calls.has(index)) :
@@ -68,7 +71,7 @@ func phrase_response(response : AgentResponse) -> AgentConversationMessages:
 						for index : int in content.size() :
 							var block : Variant = content[index];
 							if (typeof(block) == TYPE_DICTIONARY) :
-								phrase_content.call(msg, block, index);
+								phrase_content.call(msg, block, index, false);
 				
 				"message_start":
 					var message : Dictionary = response_body.get("message", {});
@@ -78,12 +81,12 @@ func phrase_response(response : AgentResponse) -> AgentConversationMessages:
 				"content_block_start":
 					var block : Dictionary = response_body.get("content_block", {});
 					var index : int = response_body.get("index", 0);
-					phrase_content.call(msg, block, index);
+					phrase_content.call(msg, block, index, true);
 				
 				"content_block_delta":
 					var delta : Dictionary = response_body.get("delta", {});
 					var index : int = response_body.get("index", 0);
-					phrase_content.call(msg, delta, index);
+					phrase_content.call(msg, delta, index, true);
 				
 				"content_block_stop", \
 				"message_delta", \

@@ -2,16 +2,24 @@
 
 [ext_resource type="Script" uid="uid://bcrdg87pov7j1" path="res://addons/godotllmagent/core/AgentClient.gd" id="1_jnl0h"]
 [ext_resource type="Script" uid="uid://cstb4ww8tlxsy" path="res://addons/godotllmagent/core/AgentConfiguration.gd" id="2_sokux"]
+[ext_resource type="Script" uid="uid://3hfpog0dkb2t" path="res://addons/godotllmagent/core/tool_call/actuator/AgentFunctionCall.gd" id="3_5e5n8"]
+[ext_resource type="Script" uid="uid://pwq146gnld31" path="res://addons/godotllmagent/core/tool_call/tools/AgentTool.gd" id="4_4h8ve"]
+[ext_resource type="Script" uid="uid://diqkd7fudkaaf" path="res://test/test_tools/say_tool.gd" id="5_ncxlw"]
 
 [sub_resource type="Resource" id="Resource_sokux"]
 script = ExtResource("2_sokux")
 base_url = "https://api.deepseek.com/anthropic"
-api_key = "sk-d25031dd41174e2e8f77a0dc4b42f260"
 extra_parameters = {
 "enable_thinking": false
 }
+api_standrd = 1
 model = "deepseek-v4-flash"
+stream = true
 metadata/_custom_type_script = "uid://cstb4ww8tlxsy"
+
+[sub_resource type="Resource" id="Resource_5e5n8"]
+script = ExtResource("5_ncxlw")
+metadata/_custom_type_script = "uid://diqkd7fudkaaf"
 
 [sub_resource type="GDScript" id="GDScript_bhunq"]
 script/source = "extends Node
@@ -49,7 +57,9 @@ func messagea_round() -> void :
 					await agent_client.tool_call(s.messages[0]);
 			if (result.is_empty()) : 
 				return;
-			agent_client.context.histroy_messages.push_back(result[0]);
+			
+			for r in result : 
+				agent_client.context.get_context_messages().push_back(result[r]);
 			call_deferred(\"messagea_round\");
 	, Object.ConnectFlags.CONNECT_ONE_SHOT);
 	s.updated.connect(
@@ -80,8 +90,14 @@ font_size = 24
 [node name="AgentClient" type="Node" unique_id=939054118]
 script = ExtResource("1_jnl0h")
 config = SubResource("Resource_sokux")
-api_standrd = 1
 metadata/_custom_type_script = "uid://bcrdg87pov7j1"
+
+[node name="AgentFunctionCall" type="Node" parent="." unique_id=774853256]
+script = ExtResource("3_5e5n8")
+tool_list = Dictionary[String, ExtResource("4_4h8ve")]({
+"SAY": SubResource("Resource_5e5n8")
+})
+metadata/_custom_type_script = "uid://3hfpog0dkb2t"
 
 [node name="Controller" type="Node" parent="." unique_id=317718744]
 script = SubResource("GDScript_bhunq")

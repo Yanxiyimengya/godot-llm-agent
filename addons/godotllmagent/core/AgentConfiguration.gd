@@ -2,6 +2,12 @@ class_name AgentConfiguration;
 extends Resource;
 ## 智能体的通用配置文件
 
+enum APIStandard
+{
+	OPENAI, 				# OpenAI 标准
+	ANTHROPIC, 				# Anthropic 标准
+};
+
 ## LLM 接口地址
 @export var base_url : String = "";
 
@@ -14,6 +20,9 @@ extends Resource;
 
 ## LLM 额外请求参数
 @export var extra_parameters : Dictionary = {};
+
+## API 标准
+@export var api_standrd : APIStandard = APIStandard.OPENAI;
 
 @export_category("Model")
 
